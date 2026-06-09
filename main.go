@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"hash"
 	"io"
 	"net"
@@ -16,8 +17,10 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-var bucketName = []byte("hashes")
-var hasherPool = sync.Pool{New: func() any { return sha256.New() }}
+var (
+	bucketName = []byte("hashes")
+	hasherPool = sync.Pool{New: func() any { return sha256.New() }}
+)
 
 type Cache struct {
 	mu  sync.RWMutex
@@ -85,7 +88,7 @@ type RHIService struct {
 	client *http.Client
 }
 
-func NewRHIService(cache *Cache) *RHIService {
+func NewRHIService(cache *Cache, timeout time.Duration, maxIdle int) *RHIService {
 	dialer := new(net.Dialer)
 	dialer.Timeout = 5 * time.Second
 	dialer.KeepAlive = 30 * time.Second
@@ -93,10 +96,10 @@ func NewRHIService(cache *Cache) *RHIService {
 	return &RHIService{
 		cache: cache,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        77,
-				MaxIdleConnsPerHost: 77,
+				MaxIdleConns:        maxIdle,
+				MaxIdleConnsPerHost: maxIdle,
 				IdleConnTimeout:     90 * time.Second,
 				DialContext:         dialer.DialContext,
 				ForceAttemptHTTP2:   true,
@@ -163,13 +166,24 @@ func (s *RHIService) GetHash(ctx context.Context, assetID string) (string, error
 }
 
 func main() {
-	cache, err := NewCache("hashes.db")
+	var (
+		port         = flag.String("port", "7771", "Server listen port")
+		dbPath       = flag.String("db", "hashes.db", "BoltDB cache file path")
+		timeout      = flag.Duration("timeout", 30*time.Second, "HTTP client timeout")
+		readTimeout  = flag.Duration("read-timeout", 5*time.Second, "Server read timeout")
+		writeTimeout = flag.Duration("write-timeout", 30*time.Second, "Server write timeout")
+		idleTimeout  = flag.Duration("idle-timeout", 120*time.Second, "Server idle timeout")
+		maxIdle      = flag.Int("max-idle", 77, "Max idle connections per host")
+	)
+	flag.Parse()
+
+	cache, err := NewCache(*dbPath)
 	if err != nil {
 		panic(err)
 	}
 	defer cache.Close()
 
-	svc := NewRHIService(cache)
+	svc := NewRHIService(cache, *timeout, *maxIdle)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -194,11 +208,11 @@ func main() {
 	})
 
 	server := new(http.Server)
-	server.Addr = ":7771"
+	server.Addr = ":" + *port
 	server.Handler = mux
-	server.ReadTimeout = 5 * time.Second
-	server.WriteTimeout = 30 * time.Second
-	server.IdleTimeout = 120 * time.Second
+	server.ReadTimeout = *readTimeout
+	server.WriteTimeout = *writeTimeout
+	server.IdleTimeout = *idleTimeout
 
 	if err := server.ListenAndServe(); err != nil {
 		panic(err)
