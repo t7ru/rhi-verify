@@ -1,4 +1,4 @@
-# RHI Hash Verification Service
+# Roblox Hash Index
 
 A service that verifies the Roblox asset you're getting, it fetches asset hashes and caches them persistently.
 
