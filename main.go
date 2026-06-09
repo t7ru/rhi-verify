@@ -107,11 +107,9 @@ func (c *Cache) Set(assetID, hash string) {
 	c.mem[assetID] = hash
 	c.mu.Unlock()
 
-	go func() {
-		_ = c.db.Update(func(tx *bolt.Tx) error {
-			return tx.Bucket(bucketName).Put([]byte(assetID), []byte(hash))
-		})
-	}()
+	_ = c.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketName).Put([]byte(assetID), []byte(hash))
+	})
 }
 
 type AssetDeliveryResponse struct {
