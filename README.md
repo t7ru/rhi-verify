@@ -29,8 +29,8 @@ go build -ldflags="-s -w" .
 | `-write-timeout` | `30s`       | Server write timeout          |
 | `-idle-timeout`  | `120s`      | Server idle timeout           |
 | `-max-idle`      | `77`        | Max idle connections per host |
+| `-nosync`        | `false`     | Skip fsync on BoltDB writes   |
 
 ## Endpoints
 
-- `GET /` -> `400 Bad Request`
 - `GET /{assetID}` -> SHA256 hash of the asset

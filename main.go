@@ -65,8 +65,8 @@ type Cache struct {
 	db  *bolt.DB
 }
 
-func NewCache(dbPath string) (*Cache, error) {
-	db, err := bolt.Open(dbPath, 0600, new(bolt.Options))
+func NewCache(dbPath string, noSync bool) (*Cache, error) {
+	db, err := bolt.Open(dbPath, 0600, &bolt.Options{NoSync: noSync})
 	if err != nil {
 		return nil, err
 	}
@@ -224,10 +224,11 @@ func main() {
 		writeTimeout = flag.Duration("write-timeout", 30*time.Second, "Server write timeout")
 		idleTimeout  = flag.Duration("idle-timeout", 120*time.Second, "Server idle timeout")
 		maxIdle      = flag.Int("max-idle", 77, "Max idle connections per host")
+		noSync       = flag.Bool("nosync", false, "Skip fsync on BoltDB writes")
 	)
 	flag.Parse()
 
-	cache, err := NewCache(*dbPath)
+	cache, err := NewCache(*dbPath, *noSync)
 	if err != nil {
 		panic(err)
 	}
