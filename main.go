@@ -22,6 +22,43 @@ var (
 	hasherPool = sync.Pool{New: func() any { return sha256.New() }}
 )
 
+type flightGroup struct {
+	mu sync.Mutex
+	m  map[string]*flightCall
+}
+
+type flightCall struct {
+	wg  sync.WaitGroup
+	val any
+	err error
+}
+
+func (g *flightGroup) Do(key string, fn func() (any, error)) (any, error) {
+	g.mu.Lock()
+	if g.m == nil {
+		g.m = make(map[string]*flightCall)
+	}
+	if c, ok := g.m[key]; ok {
+		g.mu.Unlock()
+		c.wg.Wait()
+		return c.val, c.err
+	}
+
+	c := &flightCall{}
+	c.wg.Add(1)
+	g.m[key] = c
+	g.mu.Unlock()
+
+	c.val, c.err = fn()
+	c.wg.Done()
+
+	g.mu.Lock()
+	delete(g.m, key)
+	g.mu.Unlock()
+
+	return c.val, c.err
+}
+
 type Cache struct {
 	mu  sync.RWMutex
 	mem map[string]string
@@ -86,6 +123,7 @@ type AssetDeliveryResponse struct {
 type RHIService struct {
 	cache  *Cache
 	client *http.Client
+	flight flightGroup
 }
 
 func NewRHIService(cache *Cache, timeout time.Duration, maxIdle int) *RHIService {
@@ -109,6 +147,20 @@ func NewRHIService(cache *Cache, timeout time.Duration, maxIdle int) *RHIService
 }
 
 func (s *RHIService) GetHash(ctx context.Context, assetID string) (string, error) {
+	if hash, ok := s.cache.Get(assetID); ok {
+		return hash, nil
+	}
+
+	v, err := s.flight.Do(assetID, func() (any, error) {
+		return s.fetchAndHash(ctx, assetID)
+	})
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
+}
+
+func (s *RHIService) fetchAndHash(ctx context.Context, assetID string) (string, error) {
 	if hash, ok := s.cache.Get(assetID); ok {
 		return hash, nil
 	}
