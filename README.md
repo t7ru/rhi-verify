@@ -1,21 +1,21 @@
 # Roblox Hash Index
 
-A service that verifies the Roblox asset you're getting, it fetches asset hashes and caches them persistently.
+A service that indexes the Roblox asset you're getting by hashing and caching them persistently.
 
 It is a clone of [Paradoxum Games' RHI](http://rhi.paradoxum.gg/).
 
 ## Build
 
 ```bash
-git clone https://github.com/t7ru/rhi-verify.git
-cd rhi-verify
+git clone https://github.com/t7ru/rhi.git
+cd rhi
 go build -ldflags="-s -w" .
 ```
 
 ## Run
 
 ```bash
-./rhi-verify -port 7777 -db hashbrown.db
+./rhi -port 7777 -db hashbrown.db
 ```
 
 ## Flags
